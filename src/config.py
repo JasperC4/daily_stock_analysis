@@ -1361,6 +1361,11 @@ class Config:
     # 基本面缓存最大条目数（避免长时间运行内存增长）
     fundamental_cache_max_entries: int = 256
 
+    # === Decision signal guardrail ===
+    # Minimum reward:risk required of buy/add signals recomputed by the
+    # decision-profile reassess flow. 0 (default) disables the check.
+    decision_min_reward_risk: float = 0.0
+
     # === Portfolio PR2: import/risk/fx settings ===
     portfolio_risk_concentration_alert_pct: float = 35.0
     portfolio_risk_drawdown_alert_pct: float = 15.0
@@ -2401,6 +2406,13 @@ class Config:
                 256,
                 field_name='FUNDAMENTAL_CACHE_MAX_ENTRIES',
                 minimum=1,
+            ),
+            decision_min_reward_risk=parse_env_float(
+                os.getenv('DECISION_MIN_REWARD_RISK'),
+                0.0,
+                field_name='DECISION_MIN_REWARD_RISK',
+                minimum=0.0,
+                maximum=100.0,
             ),
             portfolio_risk_concentration_alert_pct=parse_env_float(
                 os.getenv('PORTFOLIO_RISK_CONCENTRATION_ALERT_PCT'),

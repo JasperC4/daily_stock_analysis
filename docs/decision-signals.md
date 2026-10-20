@@ -138,6 +138,7 @@ Web 在原有“信号表现统计”卡片内提供“保守 / 均衡 / 进取�
 - `guardrail_result` 是机器审计数据，记录 `raw_action`、`final_action`、`passed`、`violations`、`adjustments`、`adjusted`；`warnings` 是用户可读摘要。测试和客户端逻辑应优先依赖 warning 的稳定 `code`，`message` 只用于首版展示。
 - `MIN_ACTIONABLE_CONFIDENCE = 0.5`。所有 `buy/add` 还必须具备 horizon、invalidation 或 stop loss、合法价格关系，且 data quality 不能是 `poor/unknown`；aggressive `buy/add` 额外要求明确 invalidation，且不接受 `long` horizon。
 - 缺失置信度/invalidation 或数据质量不足时，可审计地降级为 `watch`，并记录 `passed=true, adjusted=true`。价格关系互相矛盾时无法在不改写历史快照语义的前提下保存有效计划，因此记录 `passed=false`。
+- 可选最低盈亏比：配置 `DECISION_MIN_REWARD_RISK`（默认 `0`=关闭，范围 0–100；越界按边界截断，非数字视为 `0`）后，`buy/add` 还需满足 `(target_price - entry_high) / (entry_high - stop_loss) >= 该值`，按入场区间上沿（最差成交价）计算。不足记 `reward_risk_below_minimum`；缺少 `entry_high`、`stop_loss` 或 `target_price` 记 `reward_risk_inputs_missing`，二者都按上一条的方式降级为 `watch`（`passed=true, adjusted=true`）。止损不低于入场上沿时只记已有的 `stop_loss_not_below_entry_high`，不重复记盈亏比。开启时阈值写入 `scoring_breakdown.min_reward_risk`；关闭时输出与之前逐字节一致，`profile_policy_version` 不变。该检查只作用于本节的 reassess 重算，不影响默认自动生成路径。
 - Preview-only 的 `passed=false` 仍以 HTTP 200 展示，UI 必须突出 `blocked_reason`。Persist 重算得到 `passed=false` 时返回 HTTP 400 `guardrail_blocked`，包含 `blocked_reason` 和结构化 `warnings`，不写库，也不返回 `created=true`。
 - 每次 persist 重算都必须先满足 `guardrail_result.passed=true` 才能进入写入链；`created/refreshed` 的 `item.action` 等于本次 `guardrail_result.final_action`。`existing` 返回原记录及其原始 metadata，不伪造本次 guardrail audit。
 - 默认分析和 lazy backfill 仍只自动生成 `balanced`；用户可显式选择并确认保存 balanced、conservative 或 aggressive，其中 conservative/aggressive 不会自动生成。

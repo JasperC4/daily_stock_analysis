@@ -75,11 +75,22 @@ def apply_decision_profile_policy(
     *,
     decision_profile: str,
     data_quality_level: DecisionSignalDataQuality,
+    min_reward_risk: Optional[float] = None,
 ) -> PolicyResult:
-    """Apply the minimal profile policy and guardrail to a snapshot candidate."""
+    """Apply the minimal profile policy and guardrail to a snapshot candidate.
+
+    ``min_reward_risk`` is opt-in: ``None`` or ``0`` keeps the guardrail exactly
+    as before. A positive value additionally requires ``buy/add`` candidates to
+    carry a reward:risk ratio of at least that much.
+    """
 
     normalized_candidate = _apply_profile_bias(candidate, decision_profile)
-    guardrail = _apply_guardrail(normalized_candidate, decision_profile, data_quality_level)
+    guardrail = _apply_guardrail(
+        normalized_candidate,
+        decision_profile,
+        data_quality_level,
+        min_reward_risk=min_reward_risk,
+    )
     final_candidate = _replace_action(normalized_candidate, guardrail.final_action)
     warnings = _warnings_for_guardrail(guardrail)
     blocked_reason = (
@@ -96,6 +107,9 @@ def apply_decision_profile_policy(
         "data_quality_level": data_quality_level,
         "policy": "minimal_deterministic",
     }
+    if min_reward_risk:
+        # Recorded only when the opt-in check ran, so default output is unchanged.
+        scoring_breakdown["min_reward_risk"] = min_reward_risk
     return PolicyResult(
         candidate=final_candidate,
         guardrail_result=guardrail,
@@ -130,6 +144,8 @@ def _apply_guardrail(
     candidate: DecisionSignalCandidate,
     decision_profile: str,
     data_quality_level: DecisionSignalDataQuality,
+    *,
+    min_reward_risk: Optional[float] = None,
 ) -> GuardrailResult:
     violations: list[str] = []
     adjustments: list[str] = []
@@ -153,6 +169,8 @@ def _apply_guardrail(
         if decision_profile == "aggressive" and candidate.horizon == "long":
             violations.append("aggressive_horizon_long_not_allowed")
         violations.extend(_price_violations(candidate))
+        if min_reward_risk:
+            violations.extend(_reward_risk_violations(candidate, min_reward_risk))
 
     if raw_action in ("buy", "add") and violations:
         has_price_violation = any(code in PRICE_RELATIONSHIP_VIOLATION_CODES for code in violations)
@@ -202,6 +220,26 @@ def _price_violations(candidate: DecisionSignalCandidate) -> list[str]:
     ):
         violations.append("target_price_not_above_entry_low")
     return violations
+
+
+def _reward_risk_violations(
+    candidate: DecisionSignalCandidate, minimum: float
+) -> list[str]:
+    """Check reward:risk against the worst-case fill (the top of the entry range)."""
+
+    entry = candidate.entry_high
+    stop = candidate.stop_loss
+    target = candidate.target_price
+    if entry is None or stop is None or target is None:
+        return ["reward_risk_inputs_missing"]
+    risk = entry - stop
+    if risk <= 0:
+        # Already reported as ``stop_loss_not_below_entry_high``; there is no
+        # meaningful ratio to compute for a stop at or above the entry.
+        return []
+    if (target - entry) / risk < minimum:
+        return ["reward_risk_below_minimum"]
+    return []
 
 
 def _replace_action(candidate: DecisionSignalCandidate, action: DecisionAction) -> DecisionSignalCandidate:

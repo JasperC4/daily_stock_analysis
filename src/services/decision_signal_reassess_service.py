@@ -7,6 +7,7 @@ import re
 from collections.abc import Mapping
 from typing import Any, Optional
 
+from src.config import get_config
 from src.schemas.decision_action import build_action_fields, normalize_decision_action
 from src.schemas.decision_profile import normalize_decision_profile
 from src.schemas.decision_scale import action_for_score, score_action_conflicts_without_guardrail
@@ -86,6 +87,7 @@ class DecisionSignalReassessService:
             candidate,
             decision_profile=decision_profile_norm,
             data_quality_level=data_quality_level,
+            min_reward_risk=get_config().decision_min_reward_risk,
         )
         preview_candidate = policy.candidate
         metadata = {

@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 <!-- 新条目格式：- [类型] 描述（类型取值：新功能/改进/修复/文档/测试/chore）-->
 <!-- 每条独立一行追加到本段末尾，无需分类标题，合并时冲突最小 -->
+- [新功能] 决策信号重评估新增可选的最低盈亏比风控：设置 `DECISION_MIN_REWARD_RISK`（默认 0=关闭，行为不变）后，盈亏比不足或缺少入场上沿/止损/目标价的 `buy/add` 会降级为 `watch`，详见 `docs/decision-signals.md`。
 
 ## [3.33.0] - 2026-10-15
 
